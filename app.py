@@ -1,11 +1,14 @@
 from flask import Flask, render_template
 from dotenv import load_dotenv
 import mysql.connector
+from mysql.connector import Error
 import os
+from flask_cors import CORS  # flask-cors 추가
 
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)  # 모든 경로에 대해 CORS 허용
 
 # 데이터베이스 설정
 db_config = {
@@ -46,7 +49,28 @@ district_mapping = {
     '11710': '송파구',
     '11740': '강동구'
 }
+def get_real_estate_data(limit=100):
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
 
+        cursor.execute('''
+            SELECT * FROM real_estate 
+            ORDER BY dealYear DESC, dealMonth DESC, dealDay DESC
+            LIMIT %s
+        ''', (limit,))
+
+        data = cursor.fetchall()
+        print("Successfully connected to database and fetched data.")  # 성공 로그 추가
+    except Error as e:
+        print(f"Error while connecting to MariaDB: {e}")  # 에러 로그 상세하게 출력
+        data = []  # 또는 적절한 에러 처리
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+            print("Database connection closed.")
+    return data
 def get_real_estate_data(limit=100):
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)

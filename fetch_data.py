@@ -52,32 +52,45 @@ def fetch_and_store_data(lawd_cd, deal_ymd):
             umdNm = item.find('umdNm').text if item.find('umdNm') is not None else None
 
             try:
+                insert_query = '''
+                    INSERT INTO real_estate (aptDong, aptNm, buildYear, dealAmount, dealDay, dealMonth, dealYear, excluUseAr, floor, sggCd, umdNm)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                '''
+                insert_data = (aptDong, aptNm, buildYear, dealAmount, dealDay, dealMonth, dealYear, excluUseAr, floor, sggCd, umdNm)
+
                 cursor.execute('''
                     SELECT 1
                     FROM real_estate
                     WHERE dealYear = %s AND dealMonth = %s AND dealDay = %s AND sggCd = %s AND aptNm = %s AND excluUseAr = %s AND floor = %s
                 ''', (dealYear, dealMonth, dealDay, sggCd, aptNm, excluUseAr, floor))
+                duplicate_check_result = cursor.fetchall()
 
-                if cursor.fetchone() is None:
-                    cursor.execute('''
-                        INSERT INTO real_estate (aptDong, aptNm, buildYear, dealAmount, dealDay, dealMonth, dealYear, excluUseAr, floor, sggCd, umdNm, reg_date)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ''', (aptDong, aptNm, buildYear, dealAmount, dealDay, dealMonth, dealYear, excluUseAr, floor, sggCd, umdNm, now))
+                print(f"중복 확인 쿼리 파라미터: dealYear={dealYear}, dealMonth={dealMonth}, dealDay={dealDay}, sggCd={sggCd}, aptNm={aptNm}, excluUseAr={excluUseAr}, floor={floor}") # 파라미터 로그 출력
+                if not duplicate_check_result: # fetchall() 결과를 사용하여 중복 데이터 확인
+                    cursor.execute(insert_query, insert_data)
                     print(f"데이터 삽입: {aptNm}, {dealYear}-{dealMonth}-{dealDay}")
                 else:
                     print(f"중복 데이터 존재: {aptNm}, {dealYear}-{dealMonth}-{dealDay}")
+            except Exception as insert_e:
+                print(f"데이터 삽입 쿼리 오류: {insert_e}, 쿼리: {insert_query}, 데이터: {insert_data}")
+                item_str = ET.tostring(item, encoding='unicode') # ET.tostring 결과를 변수에 저장
+                print(f"오류 발생 item: {item_str}") # 변수를 print 함수에 사용
 
             except Exception as e:
-                print(f"데이터 삽입 오류: {e}, 데이터: {ET.tostring(item, encoding='unicode')}")
+                print(f"데이터 처리 오류: {e}, 데이터: {ET.tostring(item, encoding='unicode')}") # 오류 메시지 변경
 
-        conn.commit()
-        conn.close()
-        print(f"{lawd_cd} 코드, {deal_ymd} 데이터 저장 완료.")
+        try:
+            conn.commit()
+            print(f"{lawd_cd} 코드, {deal_ymd} 데이터 저장 완료.")
+        except Exception as commit_e:
+            print(f"커밋 오류: {commit_e}") # 커밋 오류 로깅
+        finally:
+            conn.close()
 
-    except requests.exceptions.RequestException as e:
-        print(f"API 호출 중 오류 발생: {e}")
-    except ET.ParseError as e:
-        print(f"XML 파싱 오류 발생: {e}")
+    except requests.exceptions.RequestException as req_e:
+        print(f"API 호출 중 오류 발생: {req_e}")
+    except ET.ParseError as parse_e:
+        print(f"XML 파싱 오류 발생: {parse_e}")
 
 if __name__ == "__main__":
     gu_list = [
@@ -86,14 +99,10 @@ if __name__ == "__main__":
         '11560', '11590', '11620', '11650', '11680', '11710', '11740'
     ]
 
-    start_year = 2023
     current_year = datetime.now().year
     current_month = datetime.now().month
+    deal_ymd = f'{current_year}{current_month:02}' # 이번달만 가져오도록 수정
 
-    for year in range(start_year, current_year + 1): # 2020년부터 현재 년도까지
-        end_month = 12 if year < current_year else current_month # 현재 년도 이전은 12월까지, 현재 년도는 현재 월까지
-        for month in range(1, end_month + 1):
-            deal_ymd = f'{year}{month:02}'
-            print(f"Fetching data for year: {year}, month: {month}") # 현재 년도, 월 출력
-            for gu_code in gu_list:
-                fetch_and_store_data(gu_code, deal_ymd)
+    print(f"Fetching data for year: {current_year}, month: {current_month}") # 현재 년도, 월 출력
+    for gu_code in gu_list:
+        fetch_and_store_data(gu_code, deal_ymd)

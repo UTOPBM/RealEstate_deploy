@@ -1,0 +1,8 @@
+# /Users/kimjaehyeon/Desktop/프로젝트/부동산 프로젝트 재시작/.gcloudignore
+
+.git
+.gitignore
+__pycache__
+*.pyc
+.pytest_cache/
+.env

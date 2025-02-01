@@ -213,9 +213,6 @@
             });
 
             $('#searchForm').on('submit', function(e) {
-                currentDistrict = null;
-                currentColumnFilter = null; // 검색 폼 제출 시 컬럼 필터 초기화
-                currentColumnValue = null;
                 e.preventDefault();
                 currentMinPrice = $('#min_price').val();
                 currentStartDate = $('#start_date').val();
@@ -254,25 +251,28 @@
             $('th[data-column]').on('click', function() {
                 const clickedColumn = $(this).data('column');
                 if (!sortOrders[clickedColumn]) {
-                    sortOrders[clickedColumn] = 'none'; // 초기 상태 설정
+                    sortOrders[clickedColumn] = 'none';
                 }
 
-                // 정렬 순서 변경 (none -> 오름차순 -> 내림차순 -> none)
                 if (sortOrders[clickedColumn] === 'none') {
-                    sortOrders[clickedColumn] = 'asc'; // 오름차순으로 변경
+                    sortOrders[clickedColumn] = 'asc';
+                    currentSortOrder = 'asc';
                 } else if (sortOrders[clickedColumn] === 'asc') {
-                    sortOrders[clickedColumn] = 'desc'; // 내림차순으로 변경
+                    sortOrders[clickedColumn] = 'desc';
+                    currentSortOrder = 'desc';
                 } else if (sortOrders[clickedColumn] === 'desc') {
-                    sortOrders[clickedColumn] = 'none'; // 정렬 해제
+                    sortOrders[clickedColumn] = 'none';
+                    currentSortOrder = 'none'; // 'none' 상태는 정렬 기준을 초기화
+                    currentSortBy = 'dealYear'; // 정렬 기준 컬럼도 초기화, 필요에 따라 기본 컬럼 설정
                 }
-
-                currentSortBy = 'dealYear'; // 기본 정렬 컬럼 (초기화)
-                currentSortOrder = 'desc'; // 기본 정렬 순서 (초기화)
 
                 if (sortOrders[clickedColumn] !== 'none') {
                     currentSortBy = clickedColumn;
-                    currentSortOrder = sortOrders[clickedColumn];
+                } else {
+                    currentSortBy = 'dealYear'; // 정렬 해제 시 기본 정렬 컬럼으로 설정
+                    currentSortOrder = 'desc'; // 정렬 해제 시 기본 정렬 순서로 설정
                 }
+
 
                 currentPage = 0;
                 $('#propertyTableBody').empty();
@@ -282,10 +282,10 @@
 
             // 테이블 데이터 클릭 이벤트
             $(document).on('click', '#propertyTableBody td', function() {
-                const columnIndex = $(this).index(); // 클릭한 td의 index
-                const columnHeader = $('th').eq(columnIndex); // index를 사용하여 th 찾기
-                const clickedColumn = columnHeader.data('column'); // data-column 값 가져오기
-                const cellValue = $(this).text(); // td 텍스트 값 가져오기
+                const columnIndex = $(this).index();
+                const columnHeader = $('th').eq(columnIndex);
+                const clickedColumn = columnHeader.data('column');
+                const cellValue = $(this).text();
 
                  if (currentColumnFilter === clickedColumn && currentColumnValue === cellValue) {
                     // 같은 컬럼, 같은 값 다시 클릭 시 필터 해제

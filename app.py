@@ -51,12 +51,11 @@ district_mapping = {
     '11260': '중랑구'
 }
 
-def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None, end_date=None, limit=100, offset=0, sort_by='dealYear', sort_order='desc'):
+def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None, end_date=None, limit=100, offset=0, sort_by='dealYear', sort_order='desc', column_filter=None, column_value=None):
     try:
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor(dictionary=True)
 
-        # 기본 쿼리
         query = '''
             SELECT *
             FROM real_estate
@@ -64,14 +63,12 @@ def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None
         '''
         params = []
 
-        # 구 이름 검색 조건 추가
         if q:
             sgg_codes = [code for code, district in district_mapping.items() if district == q]
             if sgg_codes:
                 query += " AND sggCd IN ({})".format(','.join(['%s'] * len(sgg_codes)))
                 params.extend(sgg_codes)
 
-        # 거래 금액 조건 추가
         if min_price:
             query += " AND CAST(REPLACE(SUBSTRING_INDEX(dealAmount, ',', 1), ',', '') AS UNSIGNED) >= %s"
             params.append(min_price)
@@ -79,7 +76,6 @@ def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None
             query += " AND CAST(REPLACE(SUBSTRING_INDEX(dealAmount, ',', 1), ',', '') AS UNSIGNED) <= %s"
             params.append(max_price)
 
-        # 거래 일시 조건 추가
         if start_date:
             query += " AND STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d') >= %s"
             params.append(start_date)
@@ -87,15 +83,16 @@ def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None
             query += " AND STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d') <= %s"
             params.append(end_date)
 
-        # 정렬 조건 추가
+        # 컬럼 필터 조건 추가
+        if column_filter and column_value:
+            query += f" AND {column_filter} = %s"
+            params.append(column_value)
+
         if sort_by == 'dealAmount':
-            # dealAmount로 정렬할 때 REPLACE 함수 사용하여 숫자만 추출 및 타입 변환
             query += " ORDER BY CAST(REPLACE(SUBSTRING_INDEX(dealAmount, ',', 1), ',', '') AS UNSIGNED) {}".format(sort_order.upper())
         else:
-            # 나머지 컬럼에 대한 정렬 (기존 방식)
             query += " ORDER BY {} {}".format(sort_by, sort_order.upper())
 
-        # 페이지네이션 조건 추가
         query += " LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
@@ -118,17 +115,19 @@ def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None
 
 @app.route('/api/search', methods=['GET'])
 def api_search():
-    q = request.args.get('q')  # 구 이름
+    q = request.args.get('q')
     min_price = request.args.get('min_price')
     max_price = request.args.get('max_price')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-    limit = int(request.args.get('limit', 100))  # 기본값 100
-    offset = int(request.args.get('offset', 0))   # 기본값 0
+    limit = int(request.args.get('limit', 100))
+    offset = int(request.args.get('offset', 0))
     sort_by = request.args.get('sort_by', 'dealYear')
     sort_order = request.args.get('sort_order', 'desc')
+    column_filter = request.args.get('column_filter') # 컬럼 필터
+    column_value = request.args.get('column_value') # 컬럼 필터 값
 
-    real_estate_data = get_real_estate_data(q, min_price, max_price, start_date, end_date, limit, offset, sort_by, sort_order)
+    real_estate_data = get_real_estate_data(q, min_price, max_price, start_date, end_date, limit, offset, sort_by, sort_order, column_filter, column_value)
     return jsonify(real_estate_data)
 
 @app.route('/')
@@ -137,4 +136,4 @@ def index():
     return render_template('index.html', properties=real_estate_data, district_mapping=district_mapping)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5002, debug=True)

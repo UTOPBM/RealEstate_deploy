@@ -87,19 +87,19 @@
                 <!-- 데이터 테이블 -->
                 <div class="table-container">
                     <table class="table table-striped table-hover">
-                        <thead class="table-dark">
-                            <tr>
-                                <th style="width: 150px; white-space:nowrap;">구</th>
-                                <th style="width: 300px; white-space:nowrap;">아파트명</th>
-                                <th style="width: 80px; white-space:nowrap;">동</th>
-                                <th style="width: 100px; white-space:nowrap;">거래일</th>
-                                <th style="width: 50px; white-space:nowrap;">층</th>
-                                <th style="width: 80px; white-space:nowrap;">면적(㎡)</th>
-                                <th style="width: 120px; white-space:nowrap;">거래금액(만원)</th>
-                                <th style="width: 80px; white-space:nowrap;">건축년도</th>
-                                <th style="width: 150px; white-space:nowrap;">지역</th>
-                            </tr>
-                        </thead>
+        <thead class="table-dark">
+            <tr>
+                <th style="width: 150px; white-space:nowrap;" data-column="district">구</th>
+                <th style="width: 300px; white-space:nowrap;" data-column="aptNm">아파트명</th>
+                <th style="width: 80px; white-space:nowrap;" data-column="aptDong">동</th>
+                <th style="width: 100px; white-space:nowrap;" data-column="dealDate">거래일</th>
+                <th style="width: 50px; white-space:nowrap;" data-column="floor">층</th>
+                <th style="width: 80px; white-space:nowrap;" data-column="excluUseAr">면적(㎡)</th>
+                <th style="width: 120px; white-space:nowrap;" data-column="dealAmount">거래금액(만원)</th>
+                <th style="width: 80px; white-space:nowrap;" data-column="buildYear">건축년도</th>
+                <th style="width: 150px; white-space:nowrap;" data-column="umdNm">지역</th>
+            </tr>
+        </thead>
                         <style>
                             #propertyTableBody td {
                                 white-space: nowrap;
@@ -133,29 +133,32 @@
         let currentMinPrice = '';
         let currentStartDate = '';
         let currentEndDate = '';
-        
-        function loadData(page, q, min_price, start_date, end_date, sort_by, sort_order) {
-            if (allDataLoaded) return; // 모든 데이터가 이미 로드된 경우 추가 로드 방지
+        let currentColumnFilter = null; // 현재 컬럼 필터
+        let currentColumnValue = null; // 현재 컬럼 필터 값
+
+        function loadData(page, q, min_price, start_date, end_date, sort_by, sort_order, column_filter, column_value) {
+            if (allDataLoaded) return;
             $.ajax({
                 url: '/api/search',
                 data: {
                     q: q,
                     min_price: min_price,
-                    max_price: '', // max_price는 사용하지 않으므로 빈 문자열로
+                    max_price: '',
                     start_date: start_date,
                     end_date: end_date,
                     limit: limit,
                     offset: page * limit,
                     sort_by: sort_by,
-                    sort_order: sort_order
+                    sort_order: sort_order,
+                    column_filter: column_filter, // 컬럼 필터 추가
+                    column_value: column_value // 컬럼 필터 값 추가
                 },
                 success: function(data) {
                     if (data.length === 0) {
-                        allDataLoaded = true; // 더 이상 데이터가 없으면 플래그 설정
+                        allDataLoaded = true;
                         return;
                     }
                     updateTable(data);
-                    // updatePagination 함수 제거
                 },
                 error: function(error) {
                     console.error("Error fetching data:", error);
@@ -190,58 +193,106 @@
         }
 
         $(document).ready(function() {
-            // 페이지 로드 시 초기 데이터 로드
-            loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
+            loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
 
-            // 무한 스크롤 구현
             $('.table-container').on('scroll', function() {
                 if ($(this).scrollTop() + $(this).innerHeight() >= $(this)[0].scrollHeight) {
                     currentPage++;
-                    loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
+                    loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
                 }
             });
 
-            // 구 이름 버튼 클릭 이벤트
             $(document).on('click', '.district-btn', function() {
-                currentDistrict = $(this).data('district'); // Set currentDistrict when button is clicked
-                currentPage = 0; // 페이지를 0으로 리셋
-                $('#propertyTableBody').empty(); // 테이블 내용 비우기
-                allDataLoaded = false; // 데이터 로드 상태 초기화
-                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
+                currentDistrict = $(this).data('district');
+                currentColumnFilter = null; // 구 필터 변경 시 컬럼 필터 초기화
+                currentColumnValue = null;
+                currentPage = 0;
+                $('#propertyTableBody').empty();
+                allDataLoaded = false;
+                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
             });
 
-            // 검색 폼 제출 이벤트
             $('#searchForm').on('submit', function(e) {
-                currentDistrict = null; // Reset currentDistrict when search form is submitted
+                currentDistrict = null;
+                currentColumnFilter = null; // 검색 폼 제출 시 컬럼 필터 초기화
+                currentColumnValue = null;
                 e.preventDefault();
                 currentMinPrice = $('#min_price').val();
                 currentStartDate = $('#start_date').val();
                 currentEndDate = $('#end_date').val();
                 currentSortBy = $('#sort_by').val();
                 currentSortOrder = $('#sort_order').val();
-                currentPage = 0; // 페이지를 0으로 리셋
-                $('#propertyTableBody').empty(); // 테이블 내용 비우기
-                allDataLoaded = false; // 데이터 로드 상태 초기화
-                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
+                currentPage = 0;
+                $('#propertyTableBody').empty();
+                allDataLoaded = false;
+                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
             });
 
-            // 초기화 버튼 이벤트
             $('#resetBtn').on('click', function() {
                 currentDistrict = null;
+                currentColumnFilter = null; // 초기화 버튼 클릭 시 컬럼 필터 초기화
+                currentColumnValue = null;
                 currentMinPrice = '';
                 currentStartDate = '';
                 currentEndDate = '';
-                currentSortBy = 'dealYear'; // 기본 정렬 기준
-                currentSortOrder = 'desc'; // 기본 정렬 방향
-                currentPage = 0; // 페이지를 0으로 리셋
-                $('#propertyTableBody').empty(); // 테이블 내용 비우기
-                allDataLoaded = false; // 데이터 로드 상태 초기화
+                currentSortBy = 'dealYear';
+                currentSortOrder = 'desc';
+                currentPage = 0;
+                $('#propertyTableBody').empty();
+                allDataLoaded = false;
                 $('#min_price').val('');
                 $('#start_date').val('');
                 $('#end_date').val('');
-                $('#sort_by').val('dealYear'); // 정렬 기준 드롭다운 초기화
-                $('#sort_order').val('desc'); // 정렬 방향 드롭다운 초기화
-                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
+                $('#sort_by').val('dealYear');
+                $('#sort_order').val('desc');
+                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
+            });
+
+            // 테이블 헤더 클릭 이벤트
+            $('th[data-column]').on('click', function() {
+                const clickedColumn = $(this).data('column');
+                const columnText = $(this).text(); // 헤더 텍스트 가져오기
+                if (currentColumnFilter === clickedColumn) {
+                    // 같은 컬럼 다시 클릭 시 필터 해제
+                    currentColumnFilter = null;
+                    currentColumnValue = null;
+                } else {
+                    // 다른 컬럼 클릭 시 해당 컬럼으로 필터 설정
+                    currentColumnFilter = clickedColumn;
+                    currentColumnValue = prompt(`'${columnText}' 열로 필터링할 값을 입력하세요:`); // prompt 사용
+                    if (currentColumnValue === null) {
+                        currentColumnFilter = null; // prompt 취소 시 필터 해제
+                        currentColumnValue = null;
+                        return; // prompt 취소 시 로드 중단
+                    }
+                }
+                currentPage = 0;
+                $('#propertyTableBody').empty();
+                allDataLoaded = false;
+                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
+            });
+
+            // 테이블 데이터 클릭 이벤트
+            $(document).on('click', '#propertyTableBody td', function() {
+                const columnIndex = $(this).index(); // 클릭한 td의 index
+                const columnHeader = $('th').eq(columnIndex); // index를 사용하여 th 찾기
+                const clickedColumn = columnHeader.data('column'); // data-column 값 가져오기
+                const cellValue = $(this).text(); // td 텍스트 값 가져오기
+
+                 if (currentColumnFilter === clickedColumn && currentColumnValue === cellValue) {
+                    // 같은 컬럼, 같은 값 다시 클릭 시 필터 해제
+                    currentColumnFilter = null;
+                    currentColumnValue = null;
+                } else {
+                    // 다른 컬럼 또는 다른 값 클릭 시 해당 컬럼과 값으로 필터 설정
+                    currentColumnFilter = clickedColumn;
+                    currentColumnValue = cellValue;
+                }
+
+                currentPage = 0;
+                $('#propertyTableBody').empty();
+                allDataLoaded = false;
+                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
             });
         });
     </script>

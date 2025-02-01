@@ -156,7 +156,8 @@
 
         // 법정동 코드를 구 이름으로 변환하는 함수
         function getDistrictName(sggCd) {
-            return '{{ district_mapping }}'[sggCd] || '기타';
+            const districtMap = JSON.parse('{{ district_mapping | tojson | safe }}');
+            return districtMap[sggCd] || '기타';
         }
 
         $(document).ready(function() {

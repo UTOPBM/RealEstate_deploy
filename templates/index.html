@@ -89,17 +89,25 @@
                     <table class="table table-striped table-hover">
                         <thead class="table-dark">
                             <tr>
-                                <th>구</th>
-                                <th>아파트명</th>
-                                <th>동</th>
-                                <th>거래일</th>
-                                <th>층</th>
-                                <th>면적(㎡)</th>
-                                <th>거래금액(만원)</th>
-                                <th>건축년도</th>
-                                <th>지역</th>
+                                <th style="width: 150px; white-space:nowrap;">구</th>
+                                <th style="width: 300px; white-space:nowrap;">아파트명</th>
+                                <th style="width: 80px; white-space:nowrap;">동</th>
+                                <th style="width: 100px; white-space:nowrap;">거래일</th>
+                                <th style="width: 50px; white-space:nowrap;">층</th>
+                                <th style="width: 80px; white-space:nowrap;">면적(㎡)</th>
+                                <th style="width: 120px; white-space:nowrap;">거래금액(만원)</th>
+                                <th style="width: 80px; white-space:nowrap;">건축년도</th>
+                                <th style="width: 150px; white-space:nowrap;">지역</th>
                             </tr>
                         </thead>
+                        <style>
+                            #propertyTableBody td {
+                                white-space: nowrap;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                                max-width: 300px; /* Adjust as needed */
+                            }
+                        </style>
                         <tbody id="propertyTableBody">
                             <!-- 데이터가 여기에 동적으로 추가됩니다 -->
                         </tbody>
@@ -108,6 +116,11 @@
             </div>
         </div>
     </div>
+    <style>
+        #propertyTableBody td {
+            white-space: nowrap; /* Prevent text wrapping in table cells */
+        }
+    </style>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
@@ -152,10 +165,11 @@
 
         function updateTable(data) {
             const tbody = $('#propertyTableBody');
-            data.forEach(prop => { // append to existing data
+            data.forEach(prop => {
+                const districtName = currentDistrict ? currentDistrict : getDistrictName(prop.sggCd).trim();
                 tbody.append(`
                     <tr>
-                        <td>${getDistrictName(prop.sggCd)}</td>
+                        <td>${districtName}</td>
                         <td>${prop.aptNm}</td>
                         <td>${prop.aptDong}</td>
                         <td>${prop.dealYear}-${prop.dealMonth}-${prop.dealDay}</td>
@@ -168,8 +182,6 @@
                 `);
             });
         }
-
-        // 페이지네이션 업데이트 함수 제거
 
         // 법정동 코드를 구 이름으로 변환하는 함수
         function getDistrictName(sggCd) {
@@ -191,7 +203,7 @@
 
             // 구 이름 버튼 클릭 이벤트
             $(document).on('click', '.district-btn', function() {
-                currentDistrict = $(this).data('district');
+                currentDistrict = $(this).data('district'); // Set currentDistrict when button is clicked
                 currentPage = 0; // 페이지를 0으로 리셋
                 $('#propertyTableBody').empty(); // 테이블 내용 비우기
                 allDataLoaded = false; // 데이터 로드 상태 초기화
@@ -200,6 +212,7 @@
 
             // 검색 폼 제출 이벤트
             $('#searchForm').on('submit', function(e) {
+                currentDistrict = null; // Reset currentDistrict when search form is submitted
                 e.preventDefault();
                 currentMinPrice = $('#min_price').val();
                 currentStartDate = $('#start_date').val();

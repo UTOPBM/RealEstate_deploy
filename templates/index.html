@@ -24,9 +24,26 @@
                     <!-- 구 이름 필터 버튼 -->
                     <div class="district-filter">
                         {% for code, district in district_mapping.items() %}
-                        <button class="btn btn-secondary btn-sm district-btn" data-district="{{ district }}">{{ district }}</button>
+                        <button class="btn btn-primary btn-sm district-btn" data-district="{{ district }}" style="margin: 5px;">{{ district }}</button>
                         {% endfor %}
                     </div>
+                    <style>
+                        .district-filter button {
+                            background-color: #007bff; /* Blue background */
+                            color: white; /* White text */
+                            border: 1px solid #007bff; /* Blue border */
+                            border-radius: 5px; /* Rounded corners */
+                            padding: 8px 15px; /* Padding */
+                            margin-bottom: 5px; /* Margin between buttons */
+                            cursor: pointer; /* Pointer cursor on hover */
+                            transition: background-color 0.3s, color 0.3s; /* Smooth transition for hover effect */
+                        }
+
+                        .district-filter button:hover {
+                            background-color: white; /* White background on hover */
+                            color: #007bff; /* Blue text on hover */
+                        }
+                    </style>
 
                     <!-- 검색 폼 -->
                     <div class="search-form">

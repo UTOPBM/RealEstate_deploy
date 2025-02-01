@@ -249,23 +249,31 @@
             });
 
             // 테이블 헤더 클릭 이벤트
+            let sortOrders = {}; // 컬럼별 정렬 상태 저장 객체
+
             $('th[data-column]').on('click', function() {
                 const clickedColumn = $(this).data('column');
-                const columnText = $(this).text(); // 헤더 텍스트 가져오기
-                if (currentColumnFilter === clickedColumn) {
-                    // 같은 컬럼 다시 클릭 시 필터 해제
-                    currentColumnFilter = null;
-                    currentColumnValue = null;
-                } else {
-                    // 다른 컬럼 클릭 시 해당 컬럼으로 필터 설정
-                    currentColumnFilter = clickedColumn;
-                    currentColumnValue = prompt(`'${columnText}' 열로 필터링할 값을 입력하세요:`); // prompt 사용
-                    if (currentColumnValue === null) {
-                        currentColumnFilter = null; // prompt 취소 시 필터 해제
-                        currentColumnValue = null;
-                        return; // prompt 취소 시 로드 중단
-                    }
+                if (!sortOrders[clickedColumn]) {
+                    sortOrders[clickedColumn] = 'none'; // 초기 상태 설정
                 }
+
+                // 정렬 순서 변경 (none -> 오름차순 -> 내림차순 -> none)
+                if (sortOrders[clickedColumn] === 'none') {
+                    sortOrders[clickedColumn] = 'asc'; // 오름차순으로 변경
+                } else if (sortOrders[clickedColumn] === 'asc') {
+                    sortOrders[clickedColumn] = 'desc'; // 내림차순으로 변경
+                } else if (sortOrders[clickedColumn] === 'desc') {
+                    sortOrders[clickedColumn] = 'none'; // 정렬 해제
+                }
+
+                currentSortBy = 'dealYear'; // 기본 정렬 컬럼 (초기화)
+                currentSortOrder = 'desc'; // 기본 정렬 순서 (초기화)
+
+                if (sortOrders[clickedColumn] !== 'none') {
+                    currentSortBy = clickedColumn;
+                    currentSortOrder = sortOrders[clickedColumn];
+                }
+
                 currentPage = 0;
                 $('#propertyTableBody').empty();
                 allDataLoaded = false;

@@ -166,6 +166,8 @@ def apartment_search():
 def price_changes():
     apartments = request.args.get('apartments', '[]')
     period_days = int(request.args.get('period', 30))
+    if period_days > 1095:  # 최대 3년
+        period_days = 1095
     conn = None
     cursor = None
     

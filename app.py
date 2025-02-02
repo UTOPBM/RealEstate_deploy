@@ -5,6 +5,8 @@ from mysql.connector import Error
 import os
 from flask_cors import CORS
 import datetime
+from datetime import timedelta
+import json
 
 load_dotenv()
 
@@ -129,6 +131,92 @@ def api_search():
 
     real_estate_data = get_real_estate_data(q, min_price, max_price, start_date, end_date, limit, offset, sort_by, sort_order, column_filter, column_value)
     return jsonify(real_estate_data)
+
+@app.route('/api/apartment-search')
+def apartment_search():
+    query = request.args.get('q', '')
+    if len(query) < 2:
+        return jsonify([])
+
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        
+        # 아파트 이름으로 검색하여 고유한 아파트와 면적 조합 찾기
+        cursor.execute("""
+            SELECT DISTINCT aptNm, excluUseAr
+            FROM real_estate
+            WHERE aptNm LIKE %s
+            ORDER BY aptNm, excluUseAr
+            LIMIT 10
+        """, (f"%{query}%",))
+        
+        results = cursor.fetchall()
+        return jsonify(results)
+
+    except Error as e:
+        print(f"Error while searching apartments: {e}")
+        return jsonify([])
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+@app.route('/api/price-changes')
+def price_changes():
+    apartments = request.args.get('apartments', '[]')
+    period_days = int(request.args.get('period', 30))
+    conn = None
+    cursor = None
+    
+    try:
+        apartments = json.loads(apartments)
+        if not apartments:
+            return jsonify([])
+
+        end_date = datetime.datetime.now()
+        start_date = end_date - timedelta(days=period_days)
+        
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        
+        results = []
+        for apt in apartments:
+            apt_data = json.loads(apt)
+            
+            # 특정 아파트와 면적에 대한 거래 기록 조회
+            cursor.execute("""
+                SELECT 
+                    dealAmount,
+                    STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d') as deal_date
+                FROM real_estate
+                WHERE aptNm = %s 
+                AND excluUseAr = %s
+                AND STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d') 
+                    BETWEEN %s AND %s
+                ORDER BY deal_date
+            """, (apt_data['aptNm'], apt_data['excluUseAr'], start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
+            
+            prices = cursor.fetchall()
+            results.append({
+                'aptNm': apt_data['aptNm'],
+                'excluUseAr': apt_data['excluUseAr'],
+                'prices': [{
+                    'amount': float(price['dealAmount'].replace(',', '')),
+                    'date': price['deal_date'].strftime('%Y-%m-%d')
+                } for price in prices]
+            })
+        
+        return jsonify(results)
+
+    except Error as e:
+        print(f"Error while fetching price changes: {e}")
+        return jsonify([])
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.route('/')
 def index():

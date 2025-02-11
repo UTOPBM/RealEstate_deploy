@@ -52,7 +52,8 @@ def create_table():
             floor INT,
             sggCd VARCHAR(255),
             umdNm TEXT,
-            reg_date VARCHAR(255)
+            reg_date VARCHAR(255),
+            INDEX idx_real_estate (dealYear, dealMonth, dealDay, sggCd, aptNm, excluUseAr, floor, aptDong)
         ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci  # 테이블 charset 및 collation 명시적 지정
     ''')
     conn.commit()

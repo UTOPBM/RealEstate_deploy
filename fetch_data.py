@@ -1,4 +1,4 @@
-# real_estate_crawler.py
+# real_estate_crawler_modified.py
 from dotenv import load_dotenv
 load_dotenv()
 import requests
@@ -21,11 +21,11 @@ def safe_cast(value, to_type, default=None):
     except (ValueError, TypeError):
         return default
 
-def fetch_and_store_data(lawd_cd, current_year, current_month):
+def fetch_and_store_data(lawd_cd, year, month): # year, month 파라미터 추가
     """지역 코드별 데이터 수집 및 저장 함수"""
     endpoint = "http://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev"
     decoded_api_key = os.environ['DECODED_API_KEY']
-    deal_ymd = f"{current_year}{current_month:02d}"
+    deal_ymd = f"{year}{month:02d}" # 파라미터로 받은 year, month 사용
 
     # 페이징 처리
     page_no = 1
@@ -65,12 +65,12 @@ def fetch_and_store_data(lawd_cd, current_year, current_month):
                 # 거래 월 검증
                 deal_year = safe_cast(item.findtext('dealYear'), int)
                 deal_month = safe_cast(item.findtext('dealMonth'), int)
-                
-                if deal_year != current_year or deal_month != current_month:
+
+                if deal_year != year or deal_month != month: # 파라미터로 받은 year, month 와 비교
                     print(f"[경고] {deal_year}-{deal_month} 데이터 건너뛰기")
                     continue
 
-                # 필드 추출
+                # 필드 추출 (기존 코드와 동일)
                 apt_dong = item.findtext('aptDong')
                 apt_nm = item.findtext('aptNm')
                 build_year = safe_cast(item.findtext('buildYear'), int)
@@ -81,7 +81,7 @@ def fetch_and_store_data(lawd_cd, current_year, current_month):
                 sgg_cd = item.findtext('sggCd')
                 umd_nm = item.findtext('umdNm')
 
-                # 중복 체크
+                # 중복 체크 (기존 코드와 동일)
                 cursor.execute('''
                     SELECT 1 FROM real_estate
                     WHERE dealYear = %s AND dealMonth = %s AND dealDay = %s
@@ -104,16 +104,16 @@ def fetch_and_store_data(lawd_cd, current_year, current_month):
                     ))
                     total_inserted += 1
 
-            # 다음 페이지 확인
+            # 다음 페이지 확인 (기존 코드와 동일)
             if len(items) < 1000:
                 break
             page_no += 1
 
         conn.commit()
-        print(f"[성공] {lawd_cd} 지역: {total_inserted}건 저장")
+        print(f"[성공] {lawd_cd} 지역 {year}-{month:02d}: {total_inserted}건 저장") # 로그 변경
 
     except Exception as e:
-        print(f"[에러] {lawd_cd} 지역 처리 실패: {str(e)}")
+        print(f"[에러] {lawd_cd} 지역 {year}-{month:02d} 처리 실패: {str(e)}") # 로그 변경
         conn.rollback()
     finally:
         if conn.is_connected():
@@ -129,11 +129,20 @@ if __name__ == "__main__":
         '11560', '11590', '11620', '11650', '11680', '11710', '11740'
     ]
 
+    start_year = 2019
     now = datetime.now()
     current_year = now.year
     current_month = now.month
 
-    print(f"▦▦▦ {current_year}년 {current_month}월 아파트 실거래가 수집 시작 ▦▦▦")
-    for gu_code in gu_list:
-        fetch_and_store_data(gu_code, current_year, current_month)
-    print("▦▦▦ 모든 지역 데이터 수집 완료 ▦▦▦")
+    print(f"▦▦▦ {start_year}년 1월 ~ {current_year}년 {current_month}월 아파트 실거래가 수집 시작 ▦▦▦") # 시작 메시지 변경
+
+    for year in range(start_year, current_year + 1): # 연도 루프
+        for month in range(1, 13): # 월 루프 (1월부터 12월까지)
+            if year == current_year and month > current_month: # 현재 연도에서는 현재 월까지만 수집
+                break
+            print(f"▶▶▶ {year}년 {month}월 데이터 수집 시작") # 월별 시작 메시지 추가
+            for gu_code in gu_list:
+                fetch_and_store_data(gu_code, year, month) # year, month 파라미터 전달
+            print(f"◀◀◀ {year}년 {month}월 데이터 수집 완료") # 월별 완료 메시지 추가
+
+    print("▦▦▦ 모든 기간, 모든 지역 데이터 수집 완료 ▦▦▦") # 완료 메시지 변경

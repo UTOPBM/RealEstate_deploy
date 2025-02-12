@@ -1,17 +1,11 @@
-# /Users/kimjaehyeon/Desktop/프로젝트/부동산 프로젝트 재시작/Dockerfile
-
-# Python 3.9 런타임 사용
-FROM python:3.9-slim
-
-# 작업 디렉토리 설정
+FROM python:3.9-slim-buster
 WORKDIR /app
-
-# 의존성 설치
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 소스 코드 복사
+RUN pip install -r requirements.txt
+RUN pip install gunicorn  # 👈 gunicorn 명시적으로 다시 설치! (기존 수정 사항 유지)
 COPY . .
-
-# Flask 앱 실행 (gunicorn 사용)
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
+# 👈 요기!! app.py 를 실제 앱 파일 이름으로 확인!
+ENV FLASK_APP=app.py
+ENV FLASK_ENV=production
+EXPOSE 8080
+CMD gunicorn --bind 0.0.0.0:8080 app:app  # 👈 CMD 명령어를 쉘 형식으로 변경! (JSON 배열 괄호 [] 제거)

@@ -226,4 +226,5 @@ def index():
     return render_template('index.html', properties=real_estate_data, district_mapping=district_mapping)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5002, debug=True)
+    port = int(os.environ.get("PORT", 8080)) # ✅ PORT 환경 변수 값 사용, 없으면 8080 기본값
+    app.run(host='0.0.0.0', port=port, debug=True) # ✅ 수정된 port 변수 사용

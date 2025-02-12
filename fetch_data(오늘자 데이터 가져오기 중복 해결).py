@@ -1,4 +1,3 @@
-# real_estate_crawler_modified.py
 from dotenv import load_dotenv
 load_dotenv()
 import requests
@@ -21,11 +20,11 @@ def safe_cast(value, to_type, default=None):
     except (ValueError, TypeError):
         return default
 
-def fetch_and_store_data(lawd_cd, year, month): # year, month 파라미터 추가
+def fetch_and_store_data(lawd_cd, current_year, current_month):
     """지역 코드별 데이터 수집 및 저장 함수"""
     endpoint = "http://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev"
     decoded_api_key = os.environ['DECODED_API_KEY']
-    deal_ymd = f"{year}{month:02d}" # 파라미터로 받은 year, month 사용
+    deal_ymd = f"{current_year}{current_month:02d}"
 
     # 페이징 처리
     page_no = 1
@@ -42,10 +41,6 @@ def fetch_and_store_data(lawd_cd, year, month): # year, month 파라미터 추�
             'collation': 'utf8mb4_general_ci'
         })
         cursor = conn.cursor()
-
-        # Create a set to store unique record identifiers
-        inserted_records = set()
-        batch_data = []
 
         while True:
             params = {
@@ -69,15 +64,12 @@ def fetch_and_store_data(lawd_cd, year, month): # year, month 파라미터 추�
                 # 거래 월 검증
                 deal_year = safe_cast(item.findtext('dealYear'), int)
                 deal_month = safe_cast(item.findtext('dealMonth'), int)
-                deal_day = safe_cast(item.findtext('dealDay'), int)
 
-                if deal_year != year or deal_month != month: # 파라미터로 받은 year, month 와 비교
+                if deal_year != current_year or deal_month != current_month:
+                    print(f"[경고] {deal_year}-{deal_month} 데이터 건너뛰기")
                     continue
 
-                if deal_day != day:
-                    continue
-
-                # 필드 추출 (기존 코드와 동일)
+                # 필드 추출
                 apt_dong = item.findtext('aptDong')
                 apt_nm = item.findtext('aptNm')
                 build_year = safe_cast(item.findtext('buildYear'), int)
@@ -88,44 +80,39 @@ def fetch_and_store_data(lawd_cd, year, month): # year, month 파라미터 추�
                 sgg_cd = item.findtext('sggCd')
                 umd_nm = item.findtext('umdNm')
 
-                # Create a unique identifier for the record
-                record_id = f"{deal_year}-{deal_month}-{deal_day}-{sgg_cd}-{apt_nm}-{exclu_use_ar}-{floor}-{apt_dong}"
+                # 중복 체크
+                cursor.execute('''
+                    SELECT 1 FROM real_estate
+                    WHERE dealYear = %s AND dealMonth = %s AND dealDay = %s
+                    AND sggCd = %s AND aptNm = %s AND excluUseAr = %s
+                    AND floor = %s AND aptDong = %s
+                    LIMIT 1
+                ''', (deal_year, deal_month, deal_day, sgg_cd, apt_nm, exclu_use_ar, floor, apt_dong))
 
-                # Check if the record has already been inserted
-                if record_id not in inserted_records:
-                    # Add the record to the set of inserted records
-                    inserted_records.add(record_id)
-
-                    batch_data.append((
+                if not cursor.fetchone():
+                    cursor.execute('''
+                        INSERT INTO real_estate (
+                            aptDong, aptNm, buildYear, dealAmount,
+                            dealDay, dealMonth, dealYear, excluUseAr,
+                            floor, sggCd, umdNm
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ''', (
                         apt_dong, apt_nm, build_year, deal_amount,
                         deal_day, deal_month, deal_year, exclu_use_ar,
                         floor, sgg_cd, umd_nm
                     ))
+                    total_inserted += 1
 
-            # 다음 페이지 확인 (기존 코드와 동일)
+            # 다음 페이지 확인
             if len(items) < 1000:
                 break
             page_no += 1
 
-        # Execute batch insert
-        if batch_data:
-            cursor.executemany('''
-                INSERT INTO real_estate (
-                    aptDong, aptNm, buildYear, dealAmount,
-                    dealDay, dealMonth, dealYear, excluUseAr,
-                    floor, sggCd, umdNm
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ''', batch_data)
-            conn.commit()
-            total_inserted = len(batch_data)
-
-        if total_inserted > 0:
-            print(f"[성공] {lawd_cd} 지역 {year}-{month:02d}: {total_inserted}건 저장") # 로그 변경
-        else:
-            print(f"[성공] {lawd_cd} 지역 {year}-{month:02d}: 0건 저장")
+        conn.commit()
+        print(f"[성공] {lawd_cd} 지역: {total_inserted}건 저장")
 
     except Exception as e:
-        print(f"[에러] {lawd_cd} 지역 {year}-{month:02d} 처리 실패: {str(e)}") # 로그 변경
+        print(f"[에러] {lawd_cd} 지역 처리 실패: {str(e)}")
         conn.rollback()
     finally:
         if conn.is_connected():
@@ -141,20 +128,11 @@ if __name__ == "__main__":
         '11560', '11590', '11620', '11650', '11680', '11710', '11740'
     ]
 
-    start_year = 2019
     now = datetime.now()
     current_year = now.year
     current_month = now.month
 
-    print(f"▦▦▦ 오늘({current_year}년 {current_month}월) 아파트 실거래가 수집 시작 ▦▦▦") # 시작 메시지 변경
-
-    year = current_year
-    month = current_month
-    day = now.day
-
-    print(f"▶▶▶ {year}년 {month}월 {day}일 데이터 수집 시작") # 월별 시작 메시지 추가
+    print(f"▦▦▦ {current_year}년 {current_month}월 아파트 실거래가 수집 시작 ▦▦▦")
     for gu_code in gu_list:
-        fetch_and_store_data(gu_code, year, month) # year, month 파라미터 전달
-    print(f"◀◀◀ {year}년 {month}월 {day}일 데이터 수집 완료") # 월별 완료 메시지 추가
-
-    print("▦▦▦ 오늘 데이터 수집 완료 ▦▦▦") # 완료 메시지 변경
+        fetch_and_store_data(gu_code, current_year, current_month)
+    print("▦▦▦ 모든 지역 데이터 수집 완료 ▦▦▦")

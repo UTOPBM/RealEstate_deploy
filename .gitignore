@@ -1,1 +1,13 @@
+.venv/
 .env
+__pycache__/
+*.pyc
+*.log
+instance/
+*.tmp
+.idea/
+.vscode/
+.gcloudignore  # 혹시 GCP 관련 파일이면 추가 (필요 없으면 삭제)
+CREATE        # 확장자 없는 파일인데, 필요 없으면 추가
+Dockerfile-fetch # Dockerfile-fetch 파일 필요 없으면 추가
+fetch_data(오늘자 데이터 가져오기 중복 해결).ipynb # Jupyter Notebook 파일이 필요 없으면 추가

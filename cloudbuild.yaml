@@ -11,8 +11,10 @@ steps:
   - '--image'
   - 'gcr.io/$PROJECT_ID/$SERVICE_NAME:$SHORT_SHA'
   - '--region'
-  - 'us-central1' # 리전: us-central1 (아이오와)
+  - 'us-central1'
   - '--platform'
   - 'managed'
+options:  # options 섹션 추가
+  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET # 로그 버킷 자동 관리 옵션
 substitutions:
-  _SERVICE_NAME: 'realestate-deployment' # 클라우드 런 서비스 이름
+  _SERVICE_NAME: 'realestate-deployment'

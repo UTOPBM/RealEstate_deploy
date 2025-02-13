@@ -1,20 +1,20 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/$PROJECT_ID/$SERVICE_NAME:$SHORT_SHA', '.']
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$SHORT_SHA', '.']  # $_SERVICE_NAME 으로 변경
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/$PROJECT_ID/$SERVICE_NAME:$SHORT_SHA']
+  args: ['push', 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$SHORT_SHA'] # $_SERVICE_NAME 으로 변경
 - name: 'gcr.io/cloud-builders/gcloud'
   args:
   - 'run'
   - 'deploy'
-  - '$SERVICE_NAME'
+  - '$_SERVICE_NAME' # $_SERVICE_NAME 으로 변경
   - '--image'
-  - 'gcr.io/$PROJECT_ID/$SERVICE_NAME:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/$_SERVICE_NAME:$SHORT_SHA' # $_SERVICE_NAME 으로 변경
   - '--region'
   - 'us-central1'
   - '--platform'
   - 'managed'
-options:  # options 섹션 추가
-  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET # 로그 버킷 자동 관리 옵션
+options:  # options 섹션 추가 (이전 수정 유지)
+  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
 substitutions:
-  _SERVICE_NAME: 'realestate-deployment'
+  _SERVICE_NAME: 'realestate-deployment' # substitutions 섹션은 그대로 둠

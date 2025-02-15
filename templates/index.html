@@ -248,8 +248,8 @@
                     offset: page * limit,
                     sort_by: sort_by,
                     sort_order: sort_order,
-                    column_filter: column_filter,
-                    column_value: column_value
+                    column_filter: currentColumnFilter, // currentColumnFilter 추가
+                    column_value: currentColumnValue
                 },
                 success: function(data) {
                     if (data.length === 0) {
@@ -545,24 +545,35 @@
                 const columnIndex = $(this).index();
                 if (columnIndex === 9) return; // Skip if clicking on the add/remove button column
                 
-                const columnHeader = $('th').eq(columnIndex);
-                const clickedColumn = columnHeader.data('column');
-                const cellValue = $(this).text();
-
-                if (currentColumnFilter === clickedColumn && currentColumnValue === cellValue) {
-                    currentColumnFilter = null;
-                    currentColumnValue = null;
-                } else {
-                    currentColumnFilter = clickedColumn;
-                    currentColumnValue = cellValue;
-                }
-
-                currentPage = 0;
-                $('#propertyTableBody').empty();
-                allDataLoaded = false;
-                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
+                filterTableByColumn(columnIndex, $(this).text());
             });
         });
+
+        function filterTableByColumn(columnIndex, cellValue) {
+            const columnHeader = $('th').eq(columnIndex);
+            const clickedColumn = columnHeader.data('column');
+
+            console.log('Clicked Column Data:', columnHeader.data()); // data() 전체 확인
+            console.log('Clicked Column:', clickedColumn);
+            console.log('Cell Value:', cellValue);
+
+            if (currentColumnFilter === clickedColumn && currentColumnValue === cellValue) {
+                currentColumnFilter = null;
+                currentColumnValue = null;
+            } else {
+                currentColumnFilter = clickedColumn;
+                currentColumnValue = cellValue;
+            }
+
+            console.log('Current Column Filter:', currentColumnFilter);
+            console.log('Current Column Value:', currentColumnValue);
+
+
+            currentPage = 0;
+            $('#propertyTableBody').empty();
+            allDataLoaded = false;
+            loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
+        }
     </script>
 </body>
 </html>

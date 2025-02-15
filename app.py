@@ -93,7 +93,7 @@ def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None
         if sort_by == 'dealAmount':
             query += " ORDER BY CAST(REPLACE(SUBSTRING_INDEX(dealAmount, ',', 1), ',', '') AS UNSIGNED) {}".format(sort_order.upper())
         else:
-            query += " ORDER BY {} {}".format(sort_by, sort_order.upper())
+            query += " ORDER BY STR_TO_DATE(reg_date, '%Y-%m-%d') DESC, dealYear DESC, dealMonth DESC, dealDay DESC"
 
         query += " LIMIT %s OFFSET %s"
         params.extend([limit, offset])

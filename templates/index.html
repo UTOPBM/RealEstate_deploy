@@ -266,14 +266,29 @@
 
         function updateTable(data) {
             const tbody = $('#propertyTableBody');
+            let lastRegDate = null;
+
             data.forEach(prop => {
+                const dealDate = `${prop.dealYear}-${prop.dealMonth}-${prop.dealDay}`;
+                if (dealDate !== lastRegDate) {
+                    if (lastRegDate !== null) {
+                        tbody.append(`
+                            <tr>
+                                <td colspan="10" style="border-top: 2px solid black; padding: 5px; text-align: center;">
+                                    <strong>${dealDate}</strong>
+                                </td>
+                            </tr>
+                        `);
+                    }
+                    lastRegDate = dealDate;
+                }
                 const districtName = currentDistrict ? currentDistrict : getDistrictName(prop.sggCd).trim();
                 tbody.append(`
                     <tr>
                         <td>${districtName}</td>
                         <td>${prop.aptNm}</td>
                         <td>${prop.aptDong}</td>
-                        <td>${prop.dealYear}-${prop.dealMonth}-${prop.dealDay}</td>
+                        <td>${dealDate}</td>
                         <td>${prop.floor}층</td>
                         <td>${prop.excluUseAr}</td>
                         <td>${prop.dealAmount}</td>

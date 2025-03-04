@@ -169,7 +169,6 @@ def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None
             query += " AND STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d') <= %s"
             params.append(end_date)
 
-        # 컬럼 필터 조건 추가
         if column_filter and column_value:
             query += f" AND {column_filter} = %s"
             params.append(column_value)
@@ -182,23 +181,12 @@ def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None
         query += " LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
-        print("Executing query:", query)
-        print("With parameters:", params)
         cursor.execute(query, params)
         data = cursor.fetchall()
         
         # Format the data
         for row in data:
-            deal_date = f"{row['dealYear']}-{row['dealMonth']:02d}-{row['dealDay']:02d}"
-            original_amount = row['dealAmount']
             row['dealAmount'] = format_price(row['dealAmount'])
-            row['priceChange'] = calculate_price_change(
-                cursor,
-                row['aptNm'],
-                row['excluUseAr'],
-                original_amount,
-                deal_date
-            )
         
         return data
         
@@ -209,9 +197,6 @@ def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None
         if conn and conn.is_connected():
             cursor.close()
             conn.close()
-            print("Database connection closed.")
-
-    return data
 
 @app.route('/api/search', methods=['GET'])
 def api_search():
@@ -432,6 +417,28 @@ def price_changes():
         if cursor:
             cursor.close()
         if conn and conn.is_connected():
+            conn.close()
+
+@app.route('/api/price-change', methods=['GET'])
+def get_price_change():
+    apt_nm = request.args.get('apt_nm')
+    exclu_use_ar = request.args.get('exclu_use_ar')
+    deal_amount = request.args.get('deal_amount')
+    deal_date = request.args.get('deal_date')
+    
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        
+        price_change = calculate_price_change(cursor, apt_nm, float(exclu_use_ar), deal_amount, deal_date)
+        return jsonify({'priceChange': price_change})
+        
+    except Error as e:
+        print(f"Error while fetching price change: {e}")
+        return jsonify({'priceChange': '-'})
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
             conn.close()
 
 @app.route('/')

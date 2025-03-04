@@ -128,6 +128,23 @@
         .price-change-period:last-child {
             border-bottom: none;
         }
+        .price-change-loading {
+            text-align: center;
+            padding: 10px;
+        }
+        .price-change-cell {
+            min-width: 200px;
+        }
+        .date-header {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .date-header:hover {
+            background-color: #f8f9fa;
+        }
+        .clickable-row {
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -344,6 +361,7 @@
         function updateTable(data) {
             const tbody = $('#propertyTableBody');
             let lastRegDate = null;
+            let isFirstDate = true;
 
             data.forEach(prop => {
                 const dealDate = `${prop.dealYear}-${prop.dealMonth}-${prop.dealDay}`;
@@ -351,7 +369,7 @@
                     if (lastRegDate !== null) {
                         tbody.append(`
                             <tr>
-                                <td colspan="10" style="border-top: 2px solid black; padding: 5px; text-align: center;">
+                                <td colspan="10" class="date-header" data-date="${dealDate}" style="border-top: 2px solid black; padding: 5px; text-align: center;">
                                     <strong>${dealDate}</strong>
                                 </td>
                             </tr>
@@ -361,22 +379,108 @@
                 }
                 const districtName = currentDistrict ? currentDistrict : getDistrictName(prop.sggCd).trim();
                 tbody.append(`
-                    <tr>
-                        <td>${districtName}</td>
-                        <td>${prop.aptNm}</td>
-                        <td>${dealDate}</td>
-                        <td>${prop.floor}층</td>
-                        <td>${prop.excluUseAr}</td>
-                        <td>${prop.dealAmount}</td>
-                        <td>${prop.priceChange}</td>
-                        <td>${prop.buildYear}</td>
-                        <td>${prop.umdNm}</td>
+                    <tr data-apt-nm="${prop.aptNm}" 
+                        data-exclu-use-ar="${prop.excluUseAr}" 
+                        data-deal-amount="${prop.dealAmount}"
+                        data-deal-date="${dealDate}"
+                        class="${isFirstDate ? '' : 'clickable-row'}">
+                        <td class="filterable-cell">${districtName}</td>
+                        <td class="filterable-cell">${prop.aptNm}</td>
+                        <td class="filterable-cell">${dealDate}</td>
+                        <td class="filterable-cell">${prop.floor}층</td>
+                        <td class="filterable-cell">${prop.excluUseAr}</td>
+                        <td class="filterable-cell">${prop.dealAmount}</td>
+                        <td class="price-change-cell">-</td>
+                        <td class="filterable-cell">${prop.buildYear}</td>
+                        <td class="filterable-cell">${prop.umdNm}</td>
                         <td>
                             <i class="bi bi-plus-circle add-button" data-apt-info='{"aptNm":"${prop.aptNm}","excluUseAr":${prop.excluUseAr},"dealAmount":"${prop.dealAmount}"}'></i>
                             <i class="bi bi-dash-circle remove-button" data-apt-info='{"aptNm":"${prop.aptNm}","excluUseAr":${prop.excluUseAr},"dealAmount":"${prop.dealAmount}"}'></i>
                         </td>
                     </tr>
                 `);
+            });
+
+            // 첫 번째 날짜의 데이터에 대해 자동으로 가격 변화량 계산
+            const firstDateRows = tbody.find('tr[data-deal-date="' + data[0].dealYear + '-' + data[0].dealMonth + '-' + data[0].dealDay + '"]');
+            loadPriceChangesForRows(firstDateRows);
+
+            // 이벤트 핸들러 제거 및 다시 설정
+            tbody.off('click');
+
+            // 날짜 헤더 클릭 이벤트
+            tbody.on('click', '.date-header', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const date = $(this).data('date');
+                const rows = tbody.find(`tr[data-deal-date="${date}"]`);
+                loadPriceChangesForRows(rows);
+            });
+
+            // 개별 행 클릭 이벤트 (가격 변화량 계산)
+            tbody.on('click', '.clickable-row', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $row = $(this);
+                const $priceChangeCell = $row.find('.price-change-cell');
+                
+                if ($priceChangeCell.text() === '-') {
+                    loadPriceChangesForRows($row);
+                }
+            });
+
+            // 필터링을 위한 셀 클릭 이벤트
+            tbody.on('click', '.filterable-cell', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const columnIndex = $(this).index();
+                const columnHeader = $('th').eq(columnIndex);
+                const clickedColumn = columnHeader.data('column');
+                const cellValue = $(this).text();
+
+                if (currentColumnFilter === clickedColumn && currentColumnValue === cellValue) {
+                    currentColumnFilter = null;
+                    currentColumnValue = null;
+                } else {
+                    currentColumnFilter = clickedColumn;
+                    currentColumnValue = cellValue;
+                }
+
+                currentPage = 0;
+                $('#propertyTableBody').empty();
+                allDataLoaded = false;
+                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
+            });
+        }
+
+        function loadPriceChangesForRows($rows) {
+            $rows.each(function() {
+                const $row = $(this);
+                const $priceChangeCell = $row.find('.price-change-cell');
+                
+                if ($priceChangeCell.text() === '-') {
+                    const aptNm = $row.data('apt-nm');
+                    const excluUseAr = $row.data('exclu-use-ar');
+                    const dealAmount = $row.data('deal-amount');
+                    const dealDate = $row.data('deal-date');
+
+                    if (aptNm && excluUseAr && dealAmount && dealDate) {
+                        $priceChangeCell.html('<div class="price-change-loading">로딩중...</div>');
+                        
+                        $.get('/api/price-change', {
+                            apt_nm: aptNm,
+                            exclu_use_ar: excluUseAr,
+                            deal_amount: dealAmount,
+                            deal_date: dealDate
+                        })
+                        .done(function(response) {
+                            $priceChangeCell.html(response.priceChange);
+                        })
+                        .fail(function() {
+                            $priceChangeCell.text('-');
+                        });
+                    }
+                }
             });
         }
 
@@ -632,40 +736,7 @@
                 allDataLoaded = false;
                 loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
             });
-
-            $(document).on('click', '#propertyTableBody td', function() {
-                const columnIndex = $(this).index();
-                if (columnIndex === 9) return; // Skip if clicking on the add/remove button column
-                
-                filterTableByColumn(columnIndex, $(this).text());
-            });
         });
-
-        function filterTableByColumn(columnIndex, cellValue) {
-            const columnHeader = $('th').eq(columnIndex);
-            const clickedColumn = columnHeader.data('column');
-
-            console.log('Clicked Column Data:', columnHeader.data()); // data() 전체 확인
-            console.log('Clicked Column:', clickedColumn);
-            console.log('Cell Value:', cellValue);
-
-            if (currentColumnFilter === clickedColumn && currentColumnValue === cellValue) {
-                currentColumnFilter = null;
-                currentColumnValue = null;
-            } else {
-                currentColumnFilter = clickedColumn;
-                currentColumnValue = cellValue;
-            }
-
-            console.log('Current Column Filter:', currentColumnFilter);
-            console.log('Current Column Value:', currentColumnValue);
-
-
-            currentPage = 0;
-            $('#propertyTableBody').empty();
-            allDataLoaded = false;
-            loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
-        }
     </script>
 </body>
 </html>

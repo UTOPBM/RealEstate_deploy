@@ -20,6 +20,30 @@
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        .panel-section.collapsed {
+            padding: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+        .panel-section.collapsed .tab-content,
+        .panel-section.collapsed .nav-tabs {
+            display: none;
+        }
+        .panel-section.collapsed::after {
+            content: '▼ 패널 펼치기';
+            display: block;
+            text-align: center;
+            color: #6c757d;
+        }
+        .panel-section:not(.collapsed)::after {
+            content: '▲ 패널 접기';
+            display: block;
+            text-align: center;
+            color: #6c757d;
+            margin-top: 10px;
+            cursor: pointer;
         }
         .table-section {
             width: 100%;
@@ -740,6 +764,23 @@
                 $('#propertyTableBody').empty();
                 allDataLoaded = false;
                 loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
+            });
+
+            // 패널 접기/펼치기 기능
+            $('.panel-section').on('click', function(e) {
+                // 패널 내부의 다른 클릭 가능한 요소들은 이벤트 전파 중단
+                if ($(e.target).closest('.nav-tabs, .tab-content').length && !$(this).hasClass('collapsed')) {
+                    return;
+                }
+                
+                $(this).toggleClass('collapsed');
+                
+                // 패널이 접혔을 때 테이블 컨테이너의 높이 조정
+                if ($(this).hasClass('collapsed')) {
+                    $('.table-container').css('height', 'calc(100vh - 200px)');
+                } else {
+                    $('.table-container').css('height', 'calc(100vh - 400px)');
+                }
             });
         });
     </script>

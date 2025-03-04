@@ -361,7 +361,7 @@
         function updateTable(data) {
             const tbody = $('#propertyTableBody');
             let lastRegDate = null;
-            let isFirstDate = true;
+            let isFirstDate = tbody.children().length === 0; // 테이블이 비어있을 때만 첫 번째 날짜로 인식
 
             data.forEach(prop => {
                 const dealDate = `${prop.dealYear}-${prop.dealMonth}-${prop.dealDay}`;
@@ -401,9 +401,11 @@
                 `);
             });
 
-            // 첫 번째 날짜의 데이터에 대해 자동으로 가격 변화량 계산
-            const firstDateRows = tbody.find('tr[data-deal-date="' + data[0].dealYear + '-' + data[0].dealMonth + '-' + data[0].dealDay + '"]');
-            loadPriceChangesForRows(firstDateRows);
+            // 첫 번째 로드일 때만 첫 번째 날짜의 데이터에 대해 자동으로 가격 변화량 계산
+            if (isFirstDate) {
+                const firstDateRows = tbody.find('tr[data-deal-date="' + data[0].dealYear + '-' + data[0].dealMonth + '-' + data[0].dealDay + '"]');
+                loadPriceChangesForRows(firstDateRows);
+            }
 
             // 이벤트 핸들러 제거 및 다시 설정
             tbody.off('click');

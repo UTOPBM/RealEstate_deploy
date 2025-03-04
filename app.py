@@ -137,7 +137,7 @@ def calculate_price_change(cursor, apt_nm, exclu_use_ar, deal_amount, deal_date)
     
     return '-'
 
-def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None, end_date=None, limit=100, offset=0, sort_by='dealYear', sort_order='desc', column_filter=None, column_value=None):
+def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None, end_date=None, limit=100, offset=0, sort_by='dealYear', sort_order='desc', **kwargs):
     try:
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor(dictionary=True)
@@ -169,9 +169,20 @@ def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None
             query += " AND STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d') <= %s"
             params.append(end_date)
 
-        if column_filter and column_value:
-            query += f" AND {column_filter} = %s"
-            params.append(column_value)
+        # 필터 파라미터 처리
+        for key, value in kwargs.items():
+            if key.startswith('filter_') and value:
+                column = key.replace('filter_', '')
+                if column == 'district':
+                    query += " AND sggCd IN (SELECT sggCd FROM real_estate WHERE %s = %s)"
+                    params.extend([column, value])
+                elif column == 'dealDate':
+                    year, month, day = value.split('-')
+                    query += " AND dealYear = %s AND dealMonth = %s AND dealDay = %s"
+                    params.extend([year, month, day])
+                else:
+                    query += f" AND {column} = %s"
+                    params.append(value)
 
         if sort_by == 'dealAmount':
             query += " ORDER BY CAST(REPLACE(SUBSTRING_INDEX(dealAmount, ',', 1), ',', '') AS UNSIGNED) {}".format(sort_order.upper())
@@ -200,6 +211,7 @@ def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None
 
 @app.route('/api/search', methods=['GET'])
 def api_search():
+    # 기본 파라미터 추출
     q = request.args.get('q')
     min_price = request.args.get('min_price')
     max_price = request.args.get('max_price')
@@ -209,10 +221,25 @@ def api_search():
     offset = int(request.args.get('offset', 0))
     sort_by = request.args.get('sort_by', 'dealYear')
     sort_order = request.args.get('sort_order', 'desc')
-    column_filter = request.args.get('column_filter') # 컬럼 필터
-    column_value = request.args.get('column_value') # 컬럼 필터 값
 
-    real_estate_data = get_real_estate_data(q, min_price, max_price, start_date, end_date, limit, offset, sort_by, sort_order, column_filter, column_value)
+    # 필터 파라미터 추출
+    filter_params = {
+        key: value for key, value in request.args.items()
+        if key.startswith('filter_') and value
+    }
+
+    real_estate_data = get_real_estate_data(
+        q=q,
+        min_price=min_price,
+        max_price=max_price,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        offset=offset,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        **filter_params
+    )
     return jsonify(real_estate_data)
 
 @app.route('/api/apartment-search')

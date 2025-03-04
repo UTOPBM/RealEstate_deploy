@@ -145,6 +145,15 @@
         .clickable-row {
             cursor: pointer;
         }
+        .filtered-cell {
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+        .filterable-cell {
+            cursor: pointer;
+        }
+        .filterable-cell:hover {
+            background-color: rgba(0, 123, 255, 0.05);
+        }
     </style>
 </head>
 <body>
@@ -309,8 +318,7 @@
         let currentMinPrice = '';
         let currentStartDate = '';
         let currentEndDate = '';
-        let currentColumnFilter = null;
-        let currentColumnValue = null;
+        let activeFilters = new Map();
         let selectedApartments = new Set();
         let priceChangeChart = null;
         let apartmentColors = new Map();
@@ -328,8 +336,14 @@
             return apartmentColors.get(aptKey);
         }
 
-        function loadData(page, q, min_price, start_date, end_date, sort_by, sort_order, column_filter, column_value) {
+        function loadData(page, q, min_price, start_date, end_date, sort_by, sort_order) {
             if (allDataLoaded) return;
+            
+            const filterParams = {};
+            activeFilters.forEach((value, column) => {
+                filterParams[`filter_${column}`] = value;
+            });
+
             $.ajax({
                 url: '/api/search',
                 data: {
@@ -342,8 +356,7 @@
                     offset: page * limit,
                     sort_by: sort_by,
                     sort_order: sort_order,
-                    column_filter: currentColumnFilter, // currentColumnFilter 추가
-                    column_value: currentColumnValue
+                    ...filterParams
                 },
                 success: function(data) {
                     if (data.length === 0) {
@@ -351,6 +364,7 @@
                         return;
                     }
                     updateTable(data);
+                    applyFilterHighlighting();
                 },
                 error: function(error) {
                     console.error("Error fetching data:", error);
@@ -358,10 +372,18 @@
             });
         }
 
+        function applyFilterHighlighting() {
+            $('.filterable-cell').removeClass('filtered-cell');
+            
+            activeFilters.forEach((value, column) => {
+                $(`.filterable-cell[data-column="${column}"][data-value="${value}"]`).addClass('filtered-cell');
+            });
+        }
+
         function updateTable(data) {
             const tbody = $('#propertyTableBody');
             let lastRegDate = null;
-            let isFirstDate = tbody.children().length === 0; // 테이블이 비어있을 때만 첫 번째 날짜로 인식
+            let isFirstDate = tbody.children().length === 0;
 
             data.forEach(prop => {
                 const dealDate = `${prop.dealYear}-${prop.dealMonth}-${prop.dealDay}`;
@@ -384,15 +406,15 @@
                         data-deal-amount="${prop.dealAmount}"
                         data-deal-date="${dealDate}"
                         class="${isFirstDate ? '' : 'clickable-row'}">
-                        <td class="filterable-cell">${districtName}</td>
-                        <td class="filterable-cell">${prop.aptNm}</td>
-                        <td class="filterable-cell">${dealDate}</td>
-                        <td class="filterable-cell">${prop.floor}층</td>
-                        <td class="filterable-cell">${prop.excluUseAr}</td>
-                        <td class="filterable-cell">${prop.dealAmount}</td>
+                        <td class="filterable-cell" data-column="district" data-value="${districtName}">${districtName}</td>
+                        <td class="filterable-cell" data-column="aptNm" data-value="${prop.aptNm}">${prop.aptNm}</td>
+                        <td class="filterable-cell" data-column="dealDate" data-value="${dealDate}">${dealDate}</td>
+                        <td class="filterable-cell" data-column="floor" data-value="${prop.floor}">${prop.floor}층</td>
+                        <td class="filterable-cell" data-column="excluUseAr" data-value="${prop.excluUseAr}">${prop.excluUseAr}</td>
+                        <td class="filterable-cell" data-column="dealAmount" data-value="${prop.dealAmount}">${prop.dealAmount}</td>
                         <td class="price-change-cell">-</td>
-                        <td class="filterable-cell">${prop.buildYear}</td>
-                        <td class="filterable-cell">${prop.umdNm}</td>
+                        <td class="filterable-cell" data-column="buildYear" data-value="${prop.buildYear}">${prop.buildYear}</td>
+                        <td class="filterable-cell" data-column="umdNm" data-value="${prop.umdNm}">${prop.umdNm}</td>
                         <td>
                             <i class="bi bi-plus-circle add-button" data-apt-info='{"aptNm":"${prop.aptNm}","excluUseAr":${prop.excluUseAr},"dealAmount":"${prop.dealAmount}"}'></i>
                             <i class="bi bi-dash-circle remove-button" data-apt-info='{"aptNm":"${prop.aptNm}","excluUseAr":${prop.excluUseAr},"dealAmount":"${prop.dealAmount}"}'></i>
@@ -401,17 +423,31 @@
                 `);
             });
 
-            // 첫 번째 로드일 때만 첫 번째 날짜의 데이터에 대해 자동으로 가격 변화량 계산
+            tbody.off('click', '.filterable-cell').on('click', '.filterable-cell', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const column = $(this).data('column');
+                const value = $(this).data('value');
+                
+                if (activeFilters.has(column) && activeFilters.get(column) === value) {
+                    activeFilters.delete(column);
+                } else {
+                    activeFilters.set(column, value);
+                }
+                
+                currentPage = 0;
+                $('#propertyTableBody').empty();
+                allDataLoaded = false;
+                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
+            });
+
             if (isFirstDate) {
                 const firstDateRows = tbody.find('tr[data-deal-date="' + data[0].dealYear + '-' + data[0].dealMonth + '-' + data[0].dealDay + '"]');
                 loadPriceChangesForRows(firstDateRows);
             }
 
-            // 이벤트 핸들러 제거 및 다시 설정
-            tbody.off('click');
-
-            // 날짜 헤더 클릭 이벤트
-            tbody.on('click', '.date-header', function(e) {
+            tbody.off('click', '.date-header').on('click', '.date-header', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
                 const date = $(this).data('date');
@@ -419,39 +455,17 @@
                 loadPriceChangesForRows(rows);
             });
 
-            // 개별 행 클릭 이벤트 (가격 변화량 계산)
-            tbody.on('click', '.clickable-row', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $row = $(this);
-                const $priceChangeCell = $row.find('.price-change-cell');
-                
-                if ($priceChangeCell.text() === '-') {
-                    loadPriceChangesForRows($row);
+            tbody.off('click', '.clickable-row').on('click', '.clickable-row', function(e) {
+                if (!$(e.target).hasClass('filterable-cell')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const $row = $(this);
+                    const $priceChangeCell = $row.find('.price-change-cell');
+                    
+                    if ($priceChangeCell.text() === '-') {
+                        loadPriceChangesForRows($row);
+                    }
                 }
-            });
-
-            // 필터링을 위한 셀 클릭 이벤트
-            tbody.on('click', '.filterable-cell', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const columnIndex = $(this).index();
-                const columnHeader = $('th').eq(columnIndex);
-                const clickedColumn = columnHeader.data('column');
-                const cellValue = $(this).text();
-
-                if (currentColumnFilter === clickedColumn && currentColumnValue === cellValue) {
-                    currentColumnFilter = null;
-                    currentColumnValue = null;
-                } else {
-                    currentColumnFilter = clickedColumn;
-                    currentColumnValue = cellValue;
-                }
-
-                currentPage = 0;
-                $('#propertyTableBody').empty();
-                allDataLoaded = false;
-                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
             });
         }
 
@@ -572,7 +586,6 @@
                         const aptKey = `${apt.aptNm} (${apt.excluUseAr}㎡)`;
                         const color = getApartmentColor(aptKey);
 
-                        // Scatter plot dataset
                         datasets.push({
                             type: 'scatter',
                             label: aptKey,
@@ -585,7 +598,6 @@
                             pointRadius: 5
                         });
 
-                        // Line dataset for area chart
                         if (apt.prices.length > 0) {
                             const sortedPrices = [...apt.prices].sort((a, b) => new Date(a.date) - new Date(b.date));
                             datasets.push({
@@ -638,23 +650,21 @@
         }
 
         $(document).ready(function() {
-            loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
+            loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
 
             $('.table-container').on('scroll', function() {
                 if ($(this).scrollTop() + $(this).innerHeight() >= $(this)[0].scrollHeight) {
                     currentPage++;
-                    loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
+                    loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
                 }
             });
 
             $(document).on('click', '.district-btn', function() {
                 currentDistrict = $(this).data('district');
-                currentColumnFilter = null;
-                currentColumnValue = null;
                 currentPage = 0;
                 $('#propertyTableBody').empty();
                 allDataLoaded = false;
-                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
+                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
             });
 
             $('#searchForm').on('submit', function(e) {
@@ -667,18 +677,11 @@
                 currentPage = 0;
                 $('#propertyTableBody').empty();
                 allDataLoaded = false;
-                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
+                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
             });
 
             $('#resetBtn').on('click', function() {
                 currentDistrict = null;
-                currentColumnFilter = null;
-                currentColumnValue = null;
-                currentMinPrice = '';
-                currentStartDate = '';
-                currentEndDate = '';
-                currentSortBy = 'dealYear';
-                currentSortOrder = 'desc';
                 currentPage = 0;
                 $('#propertyTableBody').empty();
                 allDataLoaded = false;
@@ -687,7 +690,7 @@
                 $('#end_date').val('');
                 $('#sort_by').val('dealYear');
                 $('#sort_order').val('desc');
-                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
+                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
             });
 
             let typingTimer;
@@ -736,7 +739,7 @@
                 currentPage = 0;
                 $('#propertyTableBody').empty();
                 allDataLoaded = false;
-                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder, currentColumnFilter, currentColumnValue);
+                loadData(currentPage, currentDistrict, currentMinPrice, currentStartDate, currentEndDate, currentSortBy, currentSortOrder);
             });
         });
     </script>

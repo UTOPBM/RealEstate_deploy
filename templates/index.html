@@ -7,15 +7,81 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <style>
-        .table-container { margin: 20px; overflow-y: scroll; height: 800px; }
+        .container {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            max-width: 100% !important;
+        }
+        .panel-section {
+            width: 100%;
+            margin-bottom: 30px;
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .table-section {
+            width: 100%;
+        }
+        .table-container { 
+            margin: 0;
+            overflow-y: auto;
+            height: calc(100vh - 400px);
+            min-height: 500px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .search-panel {
+            display: flex;
+            gap: 20px;
+        }
+        .district-section {
+            width: 50%;
+            padding-right: 20px;
+            border-right: 1px solid #dee2e6;
+        }
+        .district-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .district-filter button {
+            flex: 0 0 calc(50% - 4px);
+            margin: 0 !important;
+            white-space: nowrap;
+            font-size: 0.9rem;
+            padding: 6px 12px;
+        }
+        .search-form {
+            flex: 1;
+            max-width: none;
+            width: 50%;
+            padding-left: 20px;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .chart-section {
+            flex: 1;
+        }
+        .nav-tabs {
+            border-bottom: none;
+            margin-bottom: 20px;
+        }
+        .tab-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
         h1 { text-align: center; margin: 20px 0; color: #333; }
         .code-column { font-family: monospace; }
-        .district-filter { margin-bottom: 20px; }
-        .district-filter button { margin-right: 5px; }
         .row { display: flex; }
         .col-md-4 { width: 35%; }
         .col-md-8 { width: 65%; }
-        .nav-tabs { margin-bottom: 20px; }
         .chart-container { height: 400px; margin-bottom: 20px; }
         .period-selector { margin-bottom: 20px; }
         .add-button, .remove-button { display: none; cursor: pointer; margin: 0 2px; }
@@ -50,67 +116,68 @@
         .price-decrease {
             color: #dc3545;
         }
+        .price-change-cell {
+            font-size: 0.85rem;
+            line-height: 1.2;
+        }
+        .price-change-period {
+            display: block;
+            border-bottom: 1px solid #eee;
+            padding: 2px 0;
+        }
+        .price-change-period:last-child {
+            border-bottom: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>서울시 아파트 실거래가 정보</h1>
-        <div class="row">
-            <div class="col-md-4">
-                <!-- 탭 네비게이션 -->
-                <ul class="nav nav-tabs" id="myTab" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="search-tab" data-bs-toggle="tab" data-bs-target="#search" type="button" role="tab">검색</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="changes-tab" data-bs-toggle="tab" data-bs-target="#changes" type="button" role="tab">변화량</button>
-                    </li>
-                </ul>
+        
+        <!-- 패널 섹션 -->
+        <div class="panel-section">
+            <!-- 탭 네비게이션 -->
+            <ul class="nav nav-tabs" id="myTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="search-tab" data-bs-toggle="tab" data-bs-target="#search" type="button" role="tab">검색</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="changes-tab" data-bs-toggle="tab" data-bs-target="#changes" type="button" role="tab">변화량</button>
+                </li>
+            </ul>
 
-                <!-- 탭 컨텐츠 -->
-                <div class="tab-content" id="myTabContent">
-                    <!-- 검색 탭 -->
-                    <div class="tab-pane fade show active" id="search" role="tabpanel">
+            <!-- 탭 컨텐츠 -->
+            <div class="tab-content" id="myTabContent">
+                <!-- 검색 탭 -->
+                <div class="tab-pane fade show active" id="search" role="tabpanel">
+                    <div class="search-panel">
                         <!-- 구 이름 필터 버튼 -->
-                        <div class="district-filter">
-                            {% for code, district in district_mapping.items() %}
-                            <button class="btn btn-primary btn-sm district-btn" data-district="{{ district }}" style="margin: 5px;">{{ district }}</button>
-                            {% endfor %}
+                        <div class="district-section">
+                            <h5 class="mb-3">지역 선택</h5>
+                            <div class="district-filter">
+                                {% for code, district in district_mapping.items() %}
+                                <button class="btn btn-outline-primary btn-sm district-btn" data-district="{{ district }}">{{ district }}</button>
+                                {% endfor %}
+                            </div>
                         </div>
-                        <style>
-                            .district-filter button {
-                                background-color: #007bff;
-                                color: white;
-                                border: 1px solid #007bff;
-                                border-radius: 5px;
-                                padding: 8px 15px;
-                                margin-bottom: 5px;
-                                cursor: pointer;
-                                transition: background-color 0.3s, color 0.3s;
-                            }
-
-                            .district-filter button:hover {
-                                background-color: white;
-                                color: #007bff;
-                            }
-                        </style>
 
                         <!-- 검색 폼 -->
                         <div class="search-form">
+                            <h5 class="mb-3">검색 조건</h5>
                             <form id="searchForm">
-                                <div class="mb-3">
+                                <div class="form-group">
                                     <label for="min_price" class="form-label">최소 거래금액(만원)</label>
                                     <input type="number" class="form-control" id="min_price" name="min_price">
                                 </div>
-                                <div class="mb-3">
+                                <div class="form-group">
                                     <label for="start_date" class="form-label">거래 시작일</label>
                                     <input type="date" class="form-control" id="start_date" name="start_date">
                                 </div>
-                                <div class="mb-3">
+                                <div class="form-group">
                                     <label for="end_date" class="form-label">거래 종료일</label>
                                     <input type="date" class="form-control" id="end_date" name="end_date">
                                 </div>
-                                <div class="mb-3">
+                                <div class="form-group">
                                     <label for="sort_by" class="form-label">정렬 기준</label>
                                     <select class="form-select" id="sort_by" name="sort_by">
                                         <option value="dealYear">거래년도</option>
@@ -118,87 +185,97 @@
                                         <option value="excluUseAr">전용면적</option>
                                     </select>
                                 </div>
-                                <div class="mb-3">
+                                <div class="form-group">
                                     <label for="sort_order" class="form-label">정렬 순서</label>
                                     <select class="form-select" id="sort_order" name="sort_order">
                                         <option value="desc">내림차순</option>
                                         <option value="asc">오름차순</option>
                                     </select>
                                 </div>
-                                <button type="submit" class="btn btn-primary">검색</button>
-                                <button type="button" class="btn btn-secondary" id="resetBtn">초기화</button>
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary">검색</button>
+                                    <button type="button" class="btn btn-secondary" id="resetBtn">초기화</button>
+                                </div>
                             </form>
                         </div>
                     </div>
-                    <!-- 변화량 탭 -->
-                    <div class="tab-pane fade" id="changes" role="tabpanel">
-                        <!-- 아파트 검색 -->
-                        <div class="search-container">
-                            <input type="text" class="form-control" id="aptSearch" placeholder="아파트 이름 검색...">
-                            <div class="search-results" style="display: none;"></div>
+                </div>
+
+                <!-- 변화량 탭 -->
+                <div class="tab-pane fade" id="changes" role="tabpanel">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <!-- 아파트 검색 -->
+                            <div class="search-container mb-4">
+                                <input type="text" class="form-control" id="aptSearch" placeholder="아파트 이름 검색...">
+                                <div class="search-results" style="display: none;"></div>
+                            </div>
+                            <!-- 기간 선택 -->
+                            <div class="period-selector mb-4">
+                                <select class="form-select" id="periodSelect">
+                                    <option value="7">1주</option>
+                                    <option value="14">2주</option>
+                                    <option value="30">1달</option>
+                                    <option value="90">3개월</option>
+                                    <option value="180">6개월</option>
+                                    <option value="365">1년</option>
+                                    <option value="730">2년</option>
+                                    <option value="1095">3년</option>
+                                </select>
+                            </div>
                         </div>
-                        <!-- 기간 선택 -->
-                        <div class="period-selector">
-                            <select class="form-select" id="periodSelect">
-                                <option value="7">1주</option>
-                                <option value="14">2주</option>
-                                <option value="30">1달</option>
-                                <option value="90">3개월</option>
-                                <option value="180">6개월</option>
-                                <option value="365">1년</option>
-                                <option value="730">2년</option>
-                                <option value="1095">3년</option>
-                            </select>
+                        <div class="col-md-8">
+                            <!-- 그래프 -->
+                            <div class="chart-container">
+                                <canvas id="priceChangeChart"></canvas>
+                            </div>
                         </div>
-                        <!-- 그래프 -->
-                        <div class="chart-container">
-                            <canvas id="priceChangeChart"></canvas>
-                        </div>
-                        <!-- 가격 변화량 테이블 -->
-                        <div class="price-change-table">
-                            <table class="table table-bordered">
-                                <thead>
-                                    <tr>
-                                        <th>아파트</th>
-                                        <th>1주</th>
-                                        <th>2주</th>
-                                        <th>1달</th>
-                                        <th>3달</th>
-                                        <th>6개월</th>
-                                        <th>1년</th>
-                                        <th>2년</th>
-                                        <th>3년</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="priceChangeTableBody">
-                                </tbody>
-                            </table>
-                        </div>
+                    </div>
+                    <!-- 가격 변화량 테이블 -->
+                    <div class="price-change-table mt-4">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>아파트</th>
+                                    <th>1주</th>
+                                    <th>2주</th>
+                                    <th>1달</th>
+                                    <th>3달</th>
+                                    <th>6개월</th>
+                                    <th>1년</th>
+                                    <th>2년</th>
+                                    <th>3년</th>
+                                </tr>
+                            </thead>
+                            <tbody id="priceChangeTableBody">
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
-            <div class="col-md-8">
-                <!-- 데이터 테이블 -->
-                <div class="table-container">
-                    <table class="table table-striped table-hover">
-                        <thead class="table-dark">
-                            <tr>
-                                <th style="width: 150px; white-space:nowrap;" data-column="district">구</th>
-                                <th style="width: 300px; white-space:nowrap;" data-column="aptNm">아파트명</th>
-                                <th style="width: 80px; white-space:nowrap;" data-column="aptDong">동</th>
-                                <th style="width: 100px; white-space:nowrap;" data-column="dealDate">거래일</th>
-                                <th style="width: 50px; white-space:nowrap;" data-column="floor">층</th>
-                                <th style="width: 80px; white-space:nowrap;" data-column="excluUseAr">면적(㎡)</th>
-                                <th style="width: 120px; white-space:nowrap;" data-column="dealAmount">거래금액(만원)</th>
-                                <th style="width: 80px; white-space:nowrap;" data-column="buildYear">건축년도</th>
-                                <th style="width: 150px; white-space:nowrap;" data-column="umdNm">지역</th>
-                                <th style="width: 50px;"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="propertyTableBody">
-                        </tbody>
-                    </table>
-                </div>
+        </div>
+
+        <!-- 테이블 섹션 -->
+        <div class="table-section">
+            <div class="table-container">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width: 100px; white-space:nowrap;" data-column="district">구</th>
+                            <th style="width: 200px; white-space:nowrap;" data-column="aptNm">아파트명</th>
+                            <th style="width: 100px; white-space:nowrap;" data-column="dealDate">거래일</th>
+                            <th style="width: 50px; white-space:nowrap;" data-column="floor">층</th>
+                            <th style="width: 80px; white-space:nowrap;" data-column="excluUseAr">면적(㎡)</th>
+                            <th style="width: 150px; white-space:nowrap;" data-column="dealAmount">거래금액</th>
+                            <th style="width: 400px; white-space:nowrap;" data-column="priceChange">가격 변화량</th>
+                            <th style="width: 80px; white-space:nowrap;" data-column="buildYear">건축년도</th>
+                            <th style="width: 100px; white-space:nowrap;" data-column="umdNm">지역</th>
+                            <th style="width: 50px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="propertyTableBody">
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -287,11 +364,11 @@
                     <tr>
                         <td>${districtName}</td>
                         <td>${prop.aptNm}</td>
-                        <td>${prop.aptDong}</td>
                         <td>${dealDate}</td>
                         <td>${prop.floor}층</td>
                         <td>${prop.excluUseAr}</td>
                         <td>${prop.dealAmount}</td>
+                        <td>${prop.priceChange}</td>
                         <td>${prop.buildYear}</td>
                         <td>${prop.umdNm}</td>
                         <td>

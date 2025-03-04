@@ -1,0 +1,6 @@
+Flask
+python-dotenv
+requests
+mysql-connector-python
+functions-framework
+defusedxml

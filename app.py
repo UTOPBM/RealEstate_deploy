@@ -53,6 +53,90 @@ district_mapping = {
     '11260': '중랑구'
 }
 
+def format_price(amount):
+    amount = int(amount.replace(',', ''))
+    billion = amount // 10000
+    million = amount % 10000
+    result = ''
+    if billion > 0:
+        result += f'{billion}억 '
+    if million > 0:
+        result += f'{million:,}만원'
+    elif billion > 0:
+        result += '원'
+    return result
+
+def parse_price(price_str):
+    # 모든 쉼표 제거
+    price_str = price_str.replace(',', '')
+    
+    # '억'과 '만원' 처리
+    total = 0
+    if '억' in price_str:
+        parts = price_str.split('억')
+        total = int(parts[0].strip()) * 10000
+        if len(parts) > 1 and parts[1].strip() and '만원' in parts[1]:
+            total += int(parts[1].replace('만원', '').strip())
+    else:
+        total = int(price_str.replace('만원', '').replace('원', '').strip())
+    
+    return total
+
+def calculate_price_change(cursor, apt_nm, exclu_use_ar, deal_amount, deal_date):
+    periods = [
+        (90, "3개월"),
+        (180, "6개월"),
+        (365, "1년"),
+        (730, "2년"),
+        (1095, "3년")
+    ]
+    try:
+        current_amount = parse_price(deal_amount)
+        deal_date = datetime.datetime.strptime(deal_date, '%Y-%m-%d')
+        changes = []
+        
+        for days, period_name in periods:
+            start_date = deal_date - timedelta(days=days)
+            
+            cursor.execute("""
+                SELECT 
+                    dealAmount,
+                    STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d') as deal_date
+                FROM real_estate
+                WHERE aptNm = %s 
+                AND excluUseAr = %s
+                AND STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d') 
+                    BETWEEN %s AND %s
+                ORDER BY ABS(DATEDIFF(
+                    STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d'),
+                    %s
+                )) ASC
+                LIMIT 1
+            """, (apt_nm, exclu_use_ar, start_date.strftime('%Y-%m-%d'), deal_date.strftime('%Y-%m-%d'), start_date.strftime('%Y-%m-%d')))
+            
+            result = cursor.fetchone()
+            if result:
+                old_amount = float(result['dealAmount'].replace(',', ''))
+                percent_change = ((current_amount - old_amount) / old_amount) * 100
+                amount_change = current_amount - old_amount
+                old_date = result['deal_date'].strftime('%Y-%m-%d')
+                
+                change_class = 'price-increase' if percent_change > 0 else 'price-decrease'
+                sign = '+' if percent_change > 0 else ''
+                
+                changes.append(f'<span class="price-change-period">{period_name}: {old_date}<br>'
+                             f'<span class="{change_class}">{format_price(str(int(old_amount)))} → {format_price(str(int(current_amount)))}<br>'
+                             f'{sign}{percent_change:.1f}% ({sign}{format_price(str(abs(int(amount_change))))})</span></span>')
+            else:
+                changes.append(f'<span class="price-change-period">{period_name}: 데이터 없음</span>')
+        
+        return '<div class="price-change-cell">' + ''.join(changes) + '</div>' if changes else '-'
+    except Exception as e:
+        print(f"Error in calculate_price_change: {e}")
+        return '-'
+    
+    return '-'
+
 def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None, end_date=None, limit=100, offset=0, sort_by='dealYear', sort_order='desc', column_filter=None, column_value=None):
     try:
         conn = mysql.connector.connect(**db_config)
@@ -102,11 +186,25 @@ def get_real_estate_data(q=None, min_price=None, max_price=None, start_date=None
         print("With parameters:", params)
         cursor.execute(query, params)
         data = cursor.fetchall()
-        print("Successfully fetched data.")
+        
+        # Format the data
+        for row in data:
+            deal_date = f"{row['dealYear']}-{row['dealMonth']:02d}-{row['dealDay']:02d}"
+            original_amount = row['dealAmount']
+            row['dealAmount'] = format_price(row['dealAmount'])
+            row['priceChange'] = calculate_price_change(
+                cursor,
+                row['aptNm'],
+                row['excluUseAr'],
+                original_amount,
+                deal_date
+            )
+        
+        return data
         
     except Error as e:
         print(f"Error while connecting to MariaDB or fetching data: {e}")
-        data = []
+        return []
     finally:
         if conn and conn.is_connected():
             cursor.close()
@@ -164,6 +262,122 @@ def apartment_search():
 
 @app.route('/api/price-changes')
 def price_changes():
+    apartments = request.args.get('apartments', '[]')
+    period_days = int(request.args.get('period', 1095))  # Default to 3 years (1095 days)
+    if period_days > 1095:  # 최대 3년
+        period_days = 1095
+    conn = None
+    cursor = None
+    
+    try:
+        apartments = json.loads(apartments)
+        if not apartments:
+            return jsonify([])
+
+        end_date = datetime.datetime.now()
+        #start_date = end_date - timedelta(days=period_days)
+        
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        
+        results = []
+        for apt in apartments:
+            apt_data = json.loads(apt)
+            
+            price_changes_info = {}
+            
+            #Calculate for different periods.
+            periods = {
+                '1주': 7,
+                '2주': 14,
+                '1달': 30,
+                '3달': 90,
+                '6개월': 180,
+                '1년': 365,
+                '2년': 730,
+                '3년': 1095,
+            }
+
+            for period_name, days in periods.items():
+                start_date = end_date - timedelta(days=days)
+                 # 특정 아파트와 면적에 대한 거래 기록 조회
+                cursor.execute("""
+                    SELECT 
+                        dealAmount,
+                        STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d') as deal_date
+                    FROM real_estate
+                    WHERE aptNm = %s 
+                    AND excluUseAr = %s
+                    AND STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d') 
+                        BETWEEN %s AND %s
+                    ORDER BY deal_date
+                """, (apt_data['aptNm'], apt_data['excluUseAr'], start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d')))
+
+                prices = cursor.fetchall()
+                
+                #find the nearest price
+                closest_price = None
+                closest_diff = float('inf')
+                for price in prices:
+                    diff = abs((end_date - price['deal_date']).days - days)
+                    if diff < closest_diff:
+                        closest_diff = diff
+                        closest_price = price
+
+                current_price_query = """
+                SELECT dealAmount,
+                    STR_TO_DATE(CONCAT(dealYear, '-', LPAD(dealMonth, 2, '0'), '-', LPAD(dealDay, 2, '0')), '%Y-%m-%d') as deal_date
+                    FROM real_estate
+                    WHERE aptNm = %s 
+                    AND excluUseAr = %s
+                    ORDER BY deal_date DESC
+                    LIMIT 1
+                """
+
+                cursor.execute(current_price_query, (apt_data['aptNm'], apt_data['excluUseAr']))
+                current_price_result = cursor.fetchone()
+
+                if current_price_result and closest_price:
+                    current_price = float(current_price_result['dealAmount'].replace(',', ''))
+                    old_price = float(closest_price['dealAmount'].replace(',', ''))
+                    
+                    if old_price != 0:
+                      percent_change = ((current_price - old_price) / old_price) * 100
+                    else :
+                      percent_change = 0
+
+                    price_changes_info[period_name] = {
+                       'percent_change' : round(percent_change, 1),
+                       'old_price' : old_price,
+                       'old_date' : closest_price['deal_date'].strftime('%Y-%m-%d'),
+                       'current_price' : current_price,
+                       'current_date' : current_price_result['deal_date'].strftime('%Y-%m-%d')
+                    }
+                else:
+                  price_changes_info[period_name] = {
+                       'percent_change' : None,
+                       'old_price' : None,
+                       'old_date' : None,
+                       'current_price' : None,
+                       'current_date' : None
+                    }
+
+            results.append({
+                'aptNm': apt_data['aptNm'],
+                'excluUseAr': apt_data['excluUseAr'],
+                'price_changes' : price_changes_info
+            })
+        
+        return jsonify(results)
+
+    except Error as e:
+        print(f"Error while fetching price changes: {e}")
+        return jsonify([])
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
     apartments = request.args.get('apartments', '[]')
     period_days = int(request.args.get('period', 30))
     if period_days > 1095:  # 최대 3년
